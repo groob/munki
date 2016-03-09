@@ -165,6 +165,17 @@ class RepoCopyError(Exception):
 
 
 def copyItemToRepo(itempath, vers, subdirectory=''):
+    print 'Copying %s to subdir %s' % (itempath,subdirectory)
+    item_name = os.path.basename(itempath)
+    if vers:
+        name, ext = os.path.splitext(item_name)
+        if not name.endswith(vers):
+            # add the version number to the end of the filename
+            item_name = '%s-%s%s' % (name, vers, ext)
+    filename = os.path.join(subdirectory, item_name)
+    return os.path.join(subdirectory, item_name)
+
+def copyItemToRepoLocal(itempath, vers, subdirectory=''):
     """Copies an item to the appropriate place in the repo.
     If itempath is a path within the repo/pkgs directory, copies nothing.
     Renames the item if an item already exists with that name.
@@ -351,7 +362,45 @@ def copyIconToRepo(iconpath):
                             % (iconpath, destination_path_name))
 
 
+
 def copyPkginfoToRepo(pkginfo, subdirectory=''):
+    url = munkicommon.pref('APIURL')
+    if not url:
+        copyPkginfoToRepoLocal(pkginfo,subdirectory)
+    else:
+        copyPkginfoToServer(pkginfo,url,subdirectory)
+
+
+def copyPkginfoToServer(pkginfo, url, subdirectory=''):
+    url = '%s/pkgsinfo' % url
+    destination_path = subdirectory
+    pkginfo_ext = pref('pkginfo_extension') or ''
+    if pkginfo_ext and not pkginfo_ext.startswith('.'):
+        pkginfo_ext = '.' + pkginfo_ext
+    pkginfo_name = '%s-%s%s' % (pkginfo['name'], pkginfo['version'],
+                                pkginfo_ext)
+    pkginfo_path = os.path.join(destination_path, pkginfo_name)
+    print 'Saving pkginfo to %s...' % pkginfo_path
+    pkginfo['filename'] = pkginfo_path
+    post_data = FoundationPlist.writePlistToString(pkginfo)
+    cmd = ['/usr/local/munki/munkiimportbridge', '-url', url, '-pkgsinfo']
+    proc = subprocess.Popen(cmd, shell=False, bufsize=-1,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    proc.stdin.write(post_data)
+    proc.stdin.close()
+    while True:
+        output = proc.stdout.readline()
+        if not output and (proc.poll() != None):
+            break
+        print output.rstrip('\n').encode('UTF-8')
+        sys.stdout.flush()
+    retcode = proc.poll()
+    if retcode:
+        print >> sys.stderr, 'Pkginfo upload failed'
+    return pkginfo_path
+
+def copyPkginfoToRepoLocal(pkginfo, subdirectory=''):
     """Saves pkginfo to munki_repo_path/pkgsinfo/subdirectory"""
     # less error checking because we copy the installer_item
     # first and bail if it fails...
