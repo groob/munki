@@ -387,9 +387,10 @@ def copyIconToRepo(iconpath):
 def copyPkginfoToRepo(pkginfo, subdirectory=''):
     url = munkicommon.pref('APIURL')
     if not url:
-        copyPkginfoToRepoLocal(pkginfo,subdirectory)
+        val = copyPkginfoToRepoLocal(pkginfo,subdirectory)
     else:
-        copyPkginfoToServer(pkginfo,url,subdirectory)
+        val = copyPkginfoToServer(pkginfo,url,subdirectory)
+    return val
 
 
 def copyPkginfoToServer(pkginfo, url, subdirectory=''):
@@ -1164,6 +1165,10 @@ def main():
     except RepoCopyError, errmsg:
         print >> sys.stderr, errmsg
         cleanupAndExit(-1)
+
+    api = pref('APIURL')
+    if api:
+        cleanupAndExit(0)
 
     if not options.nointeractive:
         # open the pkginfo file in the user's editor
